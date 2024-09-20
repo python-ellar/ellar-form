@@ -17,7 +17,7 @@ jobs:
       - name: Install Flit
         run: pip install flit
       - name: Install Dependencies
-        run: flit install --symlink
+        run: make install
       - name: Publish
         env:
           FLIT_USERNAME: ${{ secrets.FLIT_USERNAME }}
