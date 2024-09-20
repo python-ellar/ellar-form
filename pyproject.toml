@@ -1,0 +1,49 @@
+[build-system]
+requires = ["flit_core >=2,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.flit.module]
+name = "zform"
+
+
+[project]
+name = "ellar-form"
+authors = [
+   {name = "Ezeudoh Tochukwu", email = "tochukwu.ezeudoh@gmail.com"},
+]
+dynamic = ["version", "description"]
+requires-python = ">=3.8"
+readme = "README.md"
+home-page = "https://github.com/eadwinCode/ellar-form"
+classifiers = [
+    "Intended Audience :: Information Technology",
+    "Intended Audience :: System Administrators",
+    "Operating System :: OS Independent",
+    "Topic :: Internet",
+    "Topic :: Software Development :: Libraries :: Application Frameworks",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Libraries",
+    "Topic :: Software Development",
+    "Typing :: Typed",
+    "Environment :: Web Environment",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3 :: Only",
+    "Framework :: AsyncIO",
+    "Topic :: Internet :: WWW/HTTP :: HTTP Servers",
+    "Topic :: Internet :: WWW/HTTP",
+]
+
+dependencies = [
+    "ellar >= 0.8.2"
+]
+
+[project.urls]
+Documentation = "https://github.com/eadwinCode/ellar-form"
+Source = "https://github.com/eadwinCode/ellar-form"
+Homepage = "https://eadwincode.github.io/ellar-form/"
