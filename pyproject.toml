@@ -40,7 +40,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "ellar >= 0.8.2"
+    "ellar >= 0.8.3"
 ]
 
 [project.urls]
