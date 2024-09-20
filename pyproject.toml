@@ -40,7 +40,8 @@ classifiers = [
 ]
 
 dependencies = [
-    "ellar >= 0.8.2"
+    "ellar >= 0.8.4",
+    'python-multipart >= 0.0.5'
 ]
 
 [project.urls]
