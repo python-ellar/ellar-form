@@ -4,7 +4,7 @@ from ellar.common import ModuleRouter
 from ellar.testing import Test
 
 from zform import ZForm, FormManager
-from zform.fields import StringField, EmailField
+from zform.fields import StringField, EmailField, FieldBase
 
 
 class UserFormModel(BaseModel):
@@ -130,3 +130,31 @@ def test_zform_inline_instantiation():
     assert response.status_code == 200
     assert response.json()["status"] == "error"
     assert "errors" in response.json()
+
+
+def test_zform_from_fields():
+    fields = [StringField(name="username"), EmailField(name="email")]
+    form = FormManager.from_fields(fields)
+    assert isinstance(form, FormManager)
+    assert len(list(form)) == 2
+    assert all(isinstance(field, FieldBase) for field in list(form))
+
+
+def test_zform_from_fields_with_populate_form():
+    fields = [StringField(name="username"), EmailField(name="email")]
+    form = FormManager.from_fields(fields)
+    form.populate_form(data={"username": "testuser", "email": "test@example.com"})
+    assert form.get_field("username").value == "testuser"
+    assert form.get_field("email").value == "test@example.com"
+
+
+def test_zform_from_fields_with_validate(create_context):
+    fields = [StringField(name="username"), EmailField(name="email")]
+    ctx = create_context({"username": "testuser", "email": "test@example.com"})
+    form = FormManager.from_fields(fields, ctx=ctx)
+
+    is_valid = form.validate()
+
+    assert is_valid
+    assert form.errors == {}
+    assert form.value == {"username": "testuser", "email": "test@example.com"}

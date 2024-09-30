@@ -60,14 +60,14 @@ class TestBooleanField:
     def test_render_html(self):
         field = BooleanField(name="active")
         field.process(True)
-        html = str(field.render())
+        html = str(field())
         assert 'type="checkbox"' in html
         assert 'name="active"' in html
         assert "checked" in html
 
     def test_render_html_with_help_text(self):
         field = BooleanField(name="active", help_text="Active")
-        html = str(field.render())
+        html = str(field())
         assert 'type="checkbox"' in html
         assert 'name="active"' in html
         assert "checked" not in html
@@ -75,6 +75,6 @@ class TestBooleanField:
 
     def test_render_html_checkbox(self):
         field = BooleanField(name="agree")
-        html = str(field.render())
+        html = str(field())
         assert 'type="checkbox"' in html
         assert 'name="agree"' in html

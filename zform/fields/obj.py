@@ -9,6 +9,27 @@ from zform.fields.utils import format_errors
 from pydantic import BaseModel
 
 from .base import FieldBase
+from .widget import FieldWidget
+
+
+class ObjectFieldWidget(FieldWidget):
+    field: "ObjectField"
+    # language=HTML
+    template: str = """
+        <fieldset {{attrs}}>
+            {% for field in fields %}
+                <div>
+                    {{field.label()}}
+                    {{field()}}
+                </div>
+            {% endfor %}
+        </fieldset>
+        """
+
+    def get_render_context(self) -> t.Dict:
+        ctx = super().get_render_context()
+        ctx.update(fields=list(self.field))
+        return ctx
 
 
 class ObjectField(FieldBase):
@@ -45,17 +66,7 @@ class ObjectField(FieldBase):
 
     type: t.Optional[str] = "json"
 
-    # language=HTML
-    template: str = """
-        <fieldset {{attrs}}>
-            {% for field in fields %}
-                <div>
-                    {{field.label()}}
-                    {{field()}}
-                </div>
-            {% endfor %}
-        </fieldset>
-        """
+    widgetType: t.Type[FieldWidget] = ObjectFieldWidget
 
     def __init__(
         self,
@@ -105,11 +116,6 @@ class ObjectField(FieldBase):
     def validate_setup(self) -> None:
         """Validate that either schema or fields are provided."""
         assert self.schema or self._fields, "Must provide either 'schema' or 'fields'"
-
-    def get_render_context(self, attrs: t.Dict) -> t.Tuple[t.Dict, t.Dict]:
-        return attrs, dict(
-            fields=list(self),
-        )
 
     def _propagate_id(self) -> None:
         """Update child fields' IDs by adding this field's ID as prefix."""
@@ -207,7 +213,9 @@ class ObjectField(FieldBase):
             {self.name: values}, [{"msg": errors}], {self.name: raw_data}
         )
 
-    def process(self, data: t.Dict, suppress_error: bool = True) -> None:
+    def process(
+        self, data: t.Dict, suppress_error: bool = True, **kwargs: t.Any
+    ) -> None:
         """
         Process input data for this field.
 

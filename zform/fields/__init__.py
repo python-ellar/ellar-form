@@ -4,10 +4,10 @@ import typing as t
 from datetime import date, datetime, time
 
 from pydantic import BaseModel, EmailStr
-from pydantic._internal._utils import lenient_issubclass
+from ellar.pydantic import lenient_issubclass
 from typing_extensions import get_origin
-
-from .base import FieldBase, FormLabel
+from .select import ChoiceField
+from .base import FieldBase
 from .dates import (
     DateField,
     DateTimeField,
@@ -37,7 +37,8 @@ from .flist import FieldList
 from .files import FileField, ImageFileField
 from starlette.datastructures import UploadFile
 from ellar.common.datastructures import UploadFile as EllarUploadFile
-
+from .widget import FieldWidget
+from .label import FormLabel
 
 __ZFORM_TYPES__ = {
     int: IntegerField,
@@ -126,4 +127,7 @@ __all__ = [
     "BooleanField",
     "FileField",
     "ImageFileField",
+    "FieldBase",
+    "ChoiceField",
+    "FieldWidget",
 ]

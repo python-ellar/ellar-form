@@ -1,66 +1,22 @@
 import abc
 import typing as t
-import jinja2
 from ellar.common import IExecutionContext
 from ellar.common.compatible import AttributeDict
 from ellar.common.params.params import FormFieldInfo
 from ellar.common.params.resolvers import FormParameterResolver, IRouteParameterResolver
 from ellar.common.params.resolvers.base import ResolverResult
-from ellar.pydantic import ModelField, create_model_field
+from ellar.pydantic import ModelField, create_model_field, FieldInfo
 from ellar.reflect import fail_silently
 from zform.constants import ZFORM_FIELD_ATTRIBUTES
-from zform.fields.utils import format_errors, html_params, get_form_field_python_type
-from markupsafe import Markup
+from zform.fields.utils import format_errors, get_form_field_python_type
 from pydantic import AfterValidator, BeforeValidator
-from pydantic.fields import FieldInfo
 from pydantic_core import PydanticUndefined
 from pydantic_core.core_schema import ValidationInfo
 from typing_extensions import Annotated
+from .widget import FieldWidget
+from .label import FormLabel
 
 T_ = t.TypeVar("T_")
-
-
-class FormLabel:
-    """
-    An HTML form label.
-
-    Attributes:
-        field_id (str): The ID of the associated form field.
-        text (str): The text content of the label.
-    """
-
-    # language=html
-    template = """
-        <label for="{{field_id}}">{{text}}</label>
-        """
-
-    def __init__(self, field_id: t.Optional[str], text: t.Optional[str]):
-        self.field_id = field_id
-        self.text = text
-
-    def __html__(self) -> str:
-        """
-        Return the HTML representation of the label.
-
-        Returns:
-            str: The HTML string of the label.
-        """
-        return self()
-
-    def __call__(self, **kwargs) -> str:
-        """
-        Render the label as an HTML string.
-
-        Args:
-            **kwargs: Additional HTML attributes for the label.
-
-        Returns:
-            str: The rendered HTML string of the label.
-        """
-        content = jinja2.Template(self.template).render(
-            text=self.text, field_id=self.field_id
-        )
-        return Markup(content)
 
 
 class FieldBaseMeta(type):
@@ -74,10 +30,8 @@ class FieldBaseMeta(type):
             if field_info_args is not None
             else None,
         )
-
-        if field_info_args:
-            instance.validate_setup()
-            instance.on_field_ready()
+        instance.validate_setup()
+        instance.on_field_ready()
 
         # backup init kwargs and args for later use
         setattr(instance, ZFORM_FIELD_ATTRIBUTES, dict(kwargs, args=args))
@@ -99,18 +53,7 @@ class FieldBase(metaclass=FieldBaseMeta):
     """
 
     type: t.Optional[str] = None
-
-    # language=HTML
-    template = """
-        {% if help_text %}
-            <div>
-              <input type="{{type}}" {{attrs}}>
-              <small>{{help_text}}</small>
-            </div>
-        {% else %}
-            <input type="{{type}}" {{attrs}}>
-        {% endif %}
-    """
+    widgetType: t.Type[FieldWidget] = FieldWidget
 
     def __init__(
         self,
@@ -158,15 +101,19 @@ class FieldBase(metaclass=FieldBaseMeta):
             self.__apply_model_field()
             if not id:
                 self.id = self._field_info.alias
-
-            self.attrs.update(
-                {
-                    "required": self._field_info.is_required(),
-                    "title": self._field_info.title,
-                }
-            )
             self.label = FormLabel(self.id, label or self.name.capitalize())
             self.help_text = self.help_text or self._field_info_args.description
+        self._widget: t.Optional[FieldWidget] = None
+
+    @property
+    def widget(self) -> FieldWidget:
+        """
+        Get the widget for the field.
+
+        Returns:
+            FieldWidget: The widget instance.
+        """
+        return self.get_widget()
 
     @property
     def field_info_args(self) -> AttributeDict:
@@ -277,7 +224,9 @@ class FieldBase(metaclass=FieldBaseMeta):
         """
         assert self.name, "Name is required"
 
-    def process(self, data: t.Any, suppress_error: bool = True) -> None:
+    def process(
+        self, data: t.Any, suppress_error: bool = True, **kwargs: t.Any
+    ) -> None:
         """
         Process the input data for the field.
 
@@ -309,7 +258,7 @@ class FieldBase(metaclass=FieldBaseMeta):
         return self
 
     def __call__(
-        self, as_paragraph: bool = False, as_table: bool = False, **kwargs
+        self, as_paragraph: bool = False, as_table: bool = False, **kwargs: t.Any
     ) -> str:
         """
         Render the field as an HTML string.
@@ -322,7 +271,7 @@ class FieldBase(metaclass=FieldBaseMeta):
         Returns:
             str: The rendered HTML string of the field.
         """
-        return self.render(**kwargs)
+        return self.get_widget().render(**kwargs)
 
     def __html__(self) -> str:
         """
@@ -333,56 +282,16 @@ class FieldBase(metaclass=FieldBaseMeta):
         """
         return self()
 
-    def get_render_context(self, attrs: t.Dict) -> t.Tuple[t.Dict, t.Dict]:
-        return attrs, {}
-
-    def render(self, **kwargs) -> str:
+    def get_widget(self) -> FieldWidget:
         """
-        Render the field as an HTML input element.
-
-        Args:
-            **attrs: Additional HTML attributes for the input element.
+        Get the widget for the field.
 
         Returns:
-            str: The rendered HTML string of the input element.
+            FieldWidget: The widget instance.
         """
-
-        kwargs.setdefault("name", self.model_field.alias)
-        kwargs.setdefault("id", self.id)
-        kwargs.setdefault("value", self.data)
-
-        attrs, ctx = self.get_render_context(dict(self.attrs, **kwargs))
-        content = jinja2.Template(self.template).render(
-            help_text=self.help_text,
-            type=t.cast(t.Any, self.type),
-            attrs=html_params(**attrs),
-            **ctx,
-        )
-        return Markup(content)
-
-    def render_as_p(self, **kwargs) -> str:
-        """
-        Render the field as a paragraph.
-
-        Args:
-            **kwargs: Additional HTML attributes for the paragraph.
-
-        Returns:
-            str: The rendered HTML string of the paragraph.
-        """
-        return self(as_paragraph=True, **kwargs)
-
-    def render_as_table(self, **kwargs) -> str:
-        """
-        Render the field as a table row.
-
-        Args:
-            **kwargs: Additional HTML attributes for the table row.
-
-        Returns:
-            str: The rendered HTML string of the table row.
-        """
-        return self(as_table=True, **kwargs)
+        if not self._widget:
+            self._widget = self.widgetType(self)
+        return self._widget
 
     def populate_obj(self, obj, name):
         """

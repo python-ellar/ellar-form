@@ -1,4 +1,5 @@
 import typing as t
+from weakref import WeakValueDictionary
 from ellar.common import IExecutionContext
 from ellar.core import current_injector
 from ellar.pydantic import ModelField, create_model_field
@@ -11,10 +12,10 @@ from zform.fields.utils import format_errors
 
 T = t.TypeVar("T")
 
+_DICT_MODEL_FIELD = create_model_field(name="Form", type_=dict)
+
 
 class FormManager(t.Generic[T]):
-    value: t.Optional[T]
-
     """
     A form management class for processing and validating form data.
 
@@ -77,18 +78,51 @@ class FormManager(t.Generic[T]):
     This example demonstrates how to use ZFormManager with a Pydantic model
     to handle form validation in an Ellar route handler.
     """
-    __slots__ = (
-        "__model_field",
-        "errors",
-        "__fields",
-        "_value",
-        "_body",
-        "_data",
-        "_ctx",
-        "_obj",
-        "_validate_on_write",
-        "raw_data",
-    )
+
+    value: t.Optional[T]
+
+    _instances: WeakValueDictionary = WeakValueDictionary()
+    _ref_counts: t.Dict[t.Any, int] = {}
+
+    def __new__(cls, *args, **kwargs):
+        # Convert mutable types to immutable ones for hashing
+        hashable_args = tuple(
+            tuple(arg) if isinstance(arg, list) else arg for arg in args
+        )
+        hashable_kwargs = frozenset(
+            (k, tuple(v) if isinstance(v, list) else v) for k, v in kwargs.items()
+        )
+
+        key = (cls, hashable_args, hashable_kwargs)
+
+        instance = cls._instances.get(key)
+        if instance is None:
+            instance = super().__new__(cls, *args, **kwargs)
+            cls._instances[key] = instance
+            cls._ref_counts[key] = 0
+        cls._ref_counts[key] += 1
+        return instance
+
+    # def __new__(cls, *args: t.Any, **kwargs: t.Any) -> "FormManager[T]":
+    #     key = secrets.token_urlsafe(32)
+    #
+    #     instance = super().__new__(cls, *args, **kwargs)
+    #     cls._instances[key] = instance
+    #
+    #     return instance
+
+    # __slots__ = (
+    #     "__model_field",
+    #     "errors",
+    #     "__fields",
+    #     "_value",
+    #     "_body",
+    #     "_data",
+    #     "_ctx",
+    #     "_obj",
+    #     "_validate_on_write",
+    #     "raw_data",
+    # )
 
     def __init__(
         self,
@@ -111,9 +145,29 @@ class FormManager(t.Generic[T]):
 
         self.raw_data: t.Optional[t.Dict] = None
 
-        self.__fields: t.Dict[str, "FieldBase"] = {
+        self._fields: t.Dict[str, "FieldBase"] = {
             item.name: item.load() for item in resolvers
         }
+
+    def __del__(self):
+        """
+        Clears the field data when the form is destroyed.
+        """
+        pass
+        # key = next((k for k, v in self._instances.items() if v is self), None)
+        # if key:
+        #     self._ref_counts[key] -= 1
+        #     if self._ref_counts[key] == 0:
+        #         self.clear()
+        #         del self._instances[key]
+        #         del self._ref_counts[key]
+
+    def clear(self):
+        """
+        Explicitly clear the field data.
+        """
+        for field in self:
+            field.clear()
 
     @property
     def data(self) -> t.Optional[t.Dict]:
@@ -156,7 +210,11 @@ class FormManager(t.Generic[T]):
         return self.__model_field
 
     def populate_form(
-        self, obj: t.Any = None, data: t.Dict = None, **kwargs: t.Any
+        self,
+        obj: t.Any = None,
+        data: t.Dict = None,
+        field_context: t.Optional[t.Dict[str, t.Any]] = None,
+        **kwargs: t.Any,
     ) -> None:
         """
         Populates the form with data from an object or dictionary.
@@ -164,14 +222,16 @@ class FormManager(t.Generic[T]):
         Args:
             obj (Any, optional): The object to populate the form with.
             data (Dict, optional): The dictionary to populate the form with.
+            field_context (Dict[str, Any], optional): The field context for form population. Defaults to None.
             **kwargs (Any): Additional keyword arguments for form population.
         """
         self._obj = obj
         self._data = data
+        field_context = field_context or {}
 
         kwargs = dict(data or {}, **kwargs)
 
-        for name, field in self.__fields.items():
+        for name, field in self._fields.items():
             # TODO: for inline filters
             if obj is not None and hasattr(obj, name):
                 data = getattr(obj, name)
@@ -180,7 +240,7 @@ class FormManager(t.Generic[T]):
             else:
                 data = None
 
-            field.process(data, suppress_error=True)
+            field.process(data, suppress_error=True, field_context=field_context)
 
     def validate(self) -> bool:
         """
@@ -281,7 +341,7 @@ class FormManager(t.Generic[T]):
         Returns:
             Iterator[FieldBase]: An iterator over the form fields.
         """
-        return iter(self.__fields.values())
+        return iter(self._fields.values())
 
     def __contains__(self, item: t.Any) -> bool:
         """
@@ -293,14 +353,7 @@ class FormManager(t.Generic[T]):
         Returns:
             bool: True if the form contains the field, False otherwise.
         """
-        return item in self.__fields
-
-    def __del__(self) -> None:
-        """
-        Clears the field data when the form is destroyed.
-        """
-        for field in self:
-            field.clear()
+        return item in self._fields
 
     def get_field(self, field_name: str) -> FieldBase:
         """
@@ -312,7 +365,7 @@ class FormManager(t.Generic[T]):
         Returns:
             FieldBase: The form field with the specified name.
         """
-        return self.__fields[field_name]
+        return self._fields[field_name]
 
     @classmethod
     def from_schema(
@@ -358,3 +411,28 @@ class FormManager(t.Generic[T]):
         reflect.define_metadata(ZFORM_MANAGER_CREATE_PARAMETERS, dict(kwargs), schema)
 
         return cls(**kwargs, ctx=ctx, validate_on_write=validate_on_write)
+
+    @classmethod
+    def from_fields(
+        cls,
+        fields: t.List[FieldBase],
+        ctx: t.Optional[IExecutionContext] = None,
+        validate_on_write: bool = True,
+    ) -> "FormManager[dict]":
+        """
+        Creates a FormManager instance from a list of FieldBase instances.
+
+        Args:
+            fields (List[FieldBase]): The list of FieldBase instances.
+            ctx (IExecutionContext, optional): The execution context. Defaults to None.
+            validate_on_write (bool, optional): Whether to validate on write operations. Defaults to True.
+
+        Returns:
+            FormManager: A FormManager instance created from the list of FieldBase instances.
+        """
+        return cls(
+            resolvers=fields,
+            model_field=_DICT_MODEL_FIELD,
+            ctx=ctx,
+            validate_on_write=validate_on_write,
+        )

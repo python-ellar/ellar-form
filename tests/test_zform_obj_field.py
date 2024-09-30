@@ -38,7 +38,7 @@ def test_validate_setup():
 
 
 def test_get_render_context(object_field):
-    attrs, context = object_field.get_render_context({})
+    context = object_field.widget.get_render_context()
     assert "fields" in context
     assert len(context["fields"]) == 2
 

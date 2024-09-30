@@ -7,6 +7,36 @@ from ellar.common.params.resolvers.base import ResolverResult
 from zform.fields.utils import get_form_field_python_type
 from ellar.pydantic.utils import annotation_is_sequence
 from .base import FieldBase
+from .widget import FieldWidget
+
+
+class FieldListWidget(FieldWidget):
+    field: "FieldList"
+
+    # language=html
+    template: str = """
+        <div {{attrs}}>
+            <input id="{{ field.id }}-next-index" value="{{ next_index }}" hidden>
+
+            {% for item in field %}
+                <div>
+                    {{item.label()}}
+                    {{item()}}
+                </div>
+            {% endfor %}
+        </div>
+        """
+
+    def get_render_context(self) -> t.Dict:
+        """
+        Get the context for rendering the field template.
+
+        Returns:
+            Dict: A dictionary containing the field and the next index for rendering.
+        """
+        ctx = super().get_render_context()
+        ctx.update(field=self, next_index=len(self.field._items))
+        return ctx
 
 
 class FieldList(FieldBase):
@@ -50,19 +80,7 @@ class FieldList(FieldBase):
 
     type = "list"
 
-    # language=html
-    template: str = """
-        <div {{attrs}}>
-            <input id="{{ field.id }}-next-index" value="{{ next_index }}" hidden>
-
-            {% for item in field %}
-                <div>
-                    {{item.label()}}
-                    {{item()}}
-                </div>
-            {% endfor %}
-        </div>
-        """
+    widgetType: t.Type[FieldWidget] = FieldListWidget
 
     def __init__(
         self,
@@ -125,7 +143,9 @@ class FieldList(FieldBase):
         """
         return t.List[self._base_field.python_type]
 
-    def process(self, data: t.Any, suppress_error: bool = True) -> None:
+    def process(
+        self, data: t.Any, suppress_error: bool = True, **kwargs: t.Any
+    ) -> None:
         """
         Process input data for the list field.
 
@@ -240,12 +260,3 @@ class FieldList(FieldBase):
             self.add_item()
 
         return iter(self._items)
-
-    def get_render_context(self, attrs: t.Dict) -> t.Tuple[t.Dict, t.Dict]:
-        """
-        Get the context for rendering the field template.
-
-        Returns:
-            Dict: A dictionary containing the field and the next index for rendering.
-        """
-        return attrs, dict(field=self, next_index=len(self._items))
