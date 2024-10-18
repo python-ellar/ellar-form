@@ -73,8 +73,8 @@ def test_process(object_field):
     data = {"name": "Alice", "age": 25}
     object_field.process(data)
 
-    assert object_field._fields[0]._value == "Alice"
-    assert object_field._fields[1]._value == 25
+    assert object_field._fields[0].value == "Alice"
+    assert object_field._fields[1].value == 25
 
 
 def test_python_type_with_schema(schema_object_field):

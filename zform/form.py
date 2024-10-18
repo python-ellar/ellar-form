@@ -1,5 +1,4 @@
 import typing as t
-from weakref import WeakValueDictionary
 from ellar.common import IExecutionContext
 from ellar.core import current_injector
 from ellar.pydantic import ModelField, create_model_field
@@ -8,7 +7,6 @@ from ellar.threading import execute_coroutine
 from zform.constants import ZFORM_MANAGER_CREATE_PARAMETERS
 from zform.fields.base import FieldBase
 from zform.fields.utils import format_errors
-
 
 T = t.TypeVar("T")
 
@@ -81,27 +79,27 @@ class FormManager(t.Generic[T]):
 
     value: t.Optional[T]
 
-    _instances: WeakValueDictionary = WeakValueDictionary()
-    _ref_counts: t.Dict[t.Any, int] = {}
-
-    def __new__(cls, *args, **kwargs):
-        # Convert mutable types to immutable ones for hashing
-        hashable_args = tuple(
-            tuple(arg) if isinstance(arg, list) else arg for arg in args
-        )
-        hashable_kwargs = frozenset(
-            (k, tuple(v) if isinstance(v, list) else v) for k, v in kwargs.items()
-        )
-
-        key = (cls, hashable_args, hashable_kwargs)
-
-        instance = cls._instances.get(key)
-        if instance is None:
-            instance = super().__new__(cls, *args, **kwargs)
-            cls._instances[key] = instance
-            cls._ref_counts[key] = 0
-        cls._ref_counts[key] += 1
-        return instance
+    # _instances: WeakValueDictionary = WeakValueDictionary()
+    # _ref_counts: t.Dict[t.Any, int] = {}
+    #
+    # def __new__(cls, *args, **kwargs):
+    #     # Convert mutable types to immutable ones for hashing
+    #     hashable_args = tuple(
+    #         tuple(arg) if isinstance(arg, list) else arg for arg in args
+    #     )
+    #     hashable_kwargs = frozenset(
+    #         (k, tuple(v) if isinstance(v, list) else v) for k, v in kwargs.items()
+    #     )
+    #
+    #     key = (cls, hashable_args, hashable_kwargs)
+    #
+    #     instance = cls._instances.get(key)
+    #     if instance is None:
+    #         instance = super().__new__(cls, *args, **kwargs)
+    #         cls._instances[key] = instance
+    #         cls._ref_counts[key] = 0
+    #     cls._ref_counts[key] += 1
+    #     return instance
 
     # def __new__(cls, *args: t.Any, **kwargs: t.Any) -> "FormManager[T]":
     #     key = secrets.token_urlsafe(32)
@@ -146,14 +144,17 @@ class FormManager(t.Generic[T]):
         self.raw_data: t.Optional[t.Dict] = None
 
         self._fields: t.Dict[str, "FieldBase"] = {
-            item.name: item.load() for item in resolvers
+            item.name: self._initialize_field(item) for item in resolvers
         }
+
+    def _initialize_field(self, field: FieldBase) -> FieldBase:
+        return field.load()
 
     def __del__(self):
         """
         Clears the field data when the form is destroyed.
         """
-        pass
+        self.clear()
         # key = next((k for k, v in self._instances.items() if v is self), None)
         # if key:
         #     self._ref_counts[key] -= 1
@@ -332,7 +333,6 @@ class FormManager(t.Generic[T]):
         Args:
             obj (Any): The object to populate with form data.
         """
-        pass
 
     def __iter__(self) -> t.Iterator[FieldBase]:
         """

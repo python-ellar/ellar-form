@@ -35,7 +35,7 @@ class FieldListWidget(FieldWidget):
             Dict: A dictionary containing the field and the next index for rendering.
         """
         ctx = super().get_render_context()
-        ctx.update(field=self, next_index=len(self.field._items))
+        ctx.update(field=self, next_index=len(self.field.items))
         return ctx
 
 
@@ -79,7 +79,6 @@ class FieldList(FieldBase):
     """
 
     type = "list"
-
     widgetType: t.Type[FieldWidget] = FieldListWidget
 
     def __init__(
@@ -116,7 +115,7 @@ class FieldList(FieldBase):
             FieldBase: A new instance of the base field type.
         """
         kwargs = dict(getattr(self._base_field, ZFORM_FIELD_ATTRIBUTES, {}))
-        kwargs.update(name=alias)
+        kwargs.update(alias=alias, name=self.name)
         instance = self._base_field.create_from_annotation(
             annotation=get_form_field_python_type(self._base_field), **kwargs
         )
@@ -132,6 +131,16 @@ class FieldList(FieldBase):
         assert annotation_is_sequence(
             self.model_field.type_
         ), "Annotation must be a Sequence"
+
+    @property
+    def items(self) -> t.List[FieldBase]:
+        """
+        Get the list of items in the field.
+
+        Returns:
+            List[FieldBase]: The list of items in the field.
+        """
+        return list(self._items)
 
     @property
     def python_type(self) -> t.Type:
@@ -160,7 +169,7 @@ class FieldList(FieldBase):
                 self.add_item().process(item_data, suppress_error=suppress_error)
 
     async def process_form_data(
-        self, ctx: IExecutionContext, body: t.Any
+        self, ctx: IExecutionContext, body: t.Any, **kwargs: t.Any
     ) -> ResolverResult:
         """
         Process form data for the entire list of fields.
@@ -186,8 +195,8 @@ class FieldList(FieldBase):
             self._items.append(field)
             res = await field.process_form_data(ctx, body=body)
 
-            values.append(res.data[key] if res.data else None)
-            raw_data[str(index)] = res.raw_data[key]
+            values.append(res.data[self.name] if res.data else None)
+            raw_data[str(index)] = res.raw_data[self.name]
 
             if res.errors:
                 errors.setdefault(self.model_field.alias, []).extend(res.errors)

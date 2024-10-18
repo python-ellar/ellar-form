@@ -65,7 +65,6 @@ class ObjectField(FieldBase):
     """
 
     type: t.Optional[str] = "json"
-
     widgetType: t.Type[FieldWidget] = ObjectFieldWidget
 
     def __init__(
@@ -139,6 +138,12 @@ class ObjectField(FieldBase):
         Returns:
             str: Formatted name including this field's ID.
         """
+        if self.field_info_args.alias:
+            return (
+                self.field_info_args.alias
+                + ("." if self.field_info_args.alias else "")
+                + name
+            )
         return self.id + ("." if self.id else "") + name
 
     def __iter__(self) -> t.Iterator[FieldBase]:
@@ -180,7 +185,7 @@ class ObjectField(FieldBase):
         return values, errors, raw_data
 
     async def process_form_data(
-        self, ctx: IExecutionContext, body: t.Any
+        self, ctx: IExecutionContext, body: t.Any, **kwargs: t.Any
     ) -> ResolverResult:
         """
         Process and validate form data for this object field.

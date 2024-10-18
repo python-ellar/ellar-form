@@ -19,6 +19,54 @@ from .label import FormLabel
 T_ = t.TypeVar("T_")
 
 
+class FieldTransientData:
+    def __init__(self) -> None:
+        self._data = None
+        self.errors = []
+        self.raw_data = None
+        self._value = None
+
+    @property
+    def value(self) -> t.Any:
+        return self._value
+
+    @value.setter
+    def value(self, value: t.Any) -> None:
+        """
+        Set the data associated with the field.
+
+        Args:
+            value: The data to set.
+        """
+        self._value = value
+
+    @property
+    def data(self) -> t.Any:
+        """
+        Get the data associated with the field.
+
+        Returns:
+            t.Any: The data associated with the field.
+        """
+        return self.raw_data if self.raw_data else self._data
+
+    @data.setter
+    def data(self, value: t.Any) -> None:
+        """
+        Set the data associated with the field.
+
+        Args:
+            value: The data to set.
+        """
+        self._data = value
+
+    def clear(self):
+        self.data = None
+        self.errors = []
+        self.raw_data = None
+        self._value = None
+
+
 class FieldBaseMeta(type):
     def __call__(cls, *args: t.Any, **kwargs: t.Any):
         field_info_args = kwargs.pop("field_info_args", None)
@@ -65,18 +113,14 @@ class FieldBase(metaclass=FieldBaseMeta):
         disabled: t.Optional[bool] = False,
         read_only: t.Optional[bool] = False,
         field_info_args: t.Optional[t.Union[AttributeDict, t.Dict]] = None,
+        help_text: t.Optional[str] = None,
         **attrs: t.Any,
     ) -> None:
         # A field is fully configured when __field_info_args__ is provided
         assert self.type
 
-        self._value = None
         self.name = name or "no-name"
         self.id = id
-
-        self._data = None
-        self.raw_data = None
-        self.errors = []
         self._default = None
         self.attrs = AttributeDict(
             attrs,
@@ -86,7 +130,7 @@ class FieldBase(metaclass=FieldBaseMeta):
                 "class": class_,
             },
         )
-        self.help_text = None
+        self.help_text = help_text
         self.label = None
 
         self._field_info_args = AttributeDict(
@@ -103,7 +147,9 @@ class FieldBase(metaclass=FieldBaseMeta):
                 self.id = self._field_info.alias
             self.label = FormLabel(self.id, label or self.name.capitalize())
             self.help_text = self.help_text or self._field_info_args.description
+
         self._widget: t.Optional[FieldWidget] = None
+        self._transient_data = FieldTransientData()
 
     @property
     def widget(self) -> FieldWidget:
@@ -157,23 +203,41 @@ class FieldBase(metaclass=FieldBaseMeta):
 
     @property
     def data(self) -> t.Any:
-        """
-        Get the data associated with the field.
-
-        Returns:
-            t.Any: The data associated with the field.
-        """
-        return self.raw_data if self.raw_data else self._data
+        return self._transient_data.data
 
     @data.setter
     def data(self, value: t.Any) -> None:
-        """
-        Set the data associated with the field.
+        self._transient_data.data = value
 
-        Args:
-            value: The data to set.
+    @property
+    def errors(self) -> t.List[str]:
+        return self._transient_data.errors
+
+    @errors.setter
+    def errors(self, value: t.Any) -> None:
+        self._transient_data.errors = value
+
+    @property
+    def raw_data(self) -> t.Any:
+        return self._transient_data.raw_data
+
+    @raw_data.setter
+    def raw_data(self, value: t.Any) -> None:
+        self._transient_data.raw_data = value
+
+    @property
+    def value(self) -> T_:
         """
-        self._data = value
+        Get the processed value of the field.
+
+        Returns:
+            T_: The processed value of the field.
+        """
+        return t.cast(T_, self._transient_data.value)
+
+    @value.setter
+    def value(self, value: t.Any) -> t.Any:
+        self._transient_data.value = value
 
     @default.setter
     def default(self, value: t.Any) -> None:
@@ -196,24 +260,11 @@ class FieldBase(metaclass=FieldBaseMeta):
         """
         return self.__resolver.model_field
 
-    @property
-    def value(self) -> T_:
+    def clear(self) -> None:
         """
-        Get the processed value of the field.
-
-        Returns:
-            T_: The processed value of the field.
+        Clear the field's value and errors.
         """
-        return self._value
-
-    def clear(self):
-        """
-        Clear all field inputs and validation.
-        """
-        self.raw_data = None
-        self.errors = []
-        self._data = None
-        self._value = None
+        self._transient_data.clear()
 
     def validate_setup(self) -> None:
         """
@@ -234,13 +285,13 @@ class FieldBase(metaclass=FieldBaseMeta):
             data: The input data to process.
             suppress_error: Whether to suppress validation errors.
         """
-        self.errors.clear()
+        self._transient_data.errors.clear()
         v_, errors_ = self.model_field.validate(
             data, {"processing_data": True}, loc=(self.__class__.__name__,)
         )
 
         if not errors_:
-            self._value = v_
+            self.value = v_
             # export to JSON for UI to understand
             self.data = fail_silently(self.model_field.serialize, v_) or v_
 
@@ -254,6 +305,7 @@ class FieldBase(metaclass=FieldBaseMeta):
         Returns:
             FieldBase: The field instance with the default value loaded.
         """
+        self._transient_data.clear()
         self.process(self.default, suppress_error=True)
         return self
 
@@ -343,7 +395,7 @@ class FieldBase(metaclass=FieldBaseMeta):
         self.__resolver = FormParameterResolver(new_model_field)
 
     async def process_form_data(
-        self, ctx: IExecutionContext, body: t.Any
+        self, ctx: IExecutionContext, body: t.Any, **kwargs: t.Any
     ) -> ResolverResult:
         """
         Process form data for the field.
@@ -355,12 +407,12 @@ class FieldBase(metaclass=FieldBaseMeta):
         Returns:
             ResolverResult: The result of the form data processing.
         """
-        res = await self.__resolver.resolve(ctx, body=body)
+        res = await self.__resolver.resolve(ctx, body=body, **kwargs)
         _, self.raw_data = dict(res.raw_data).popitem()
         self.errors = format_errors(res.errors)
 
         if not res.errors:
-            self._value = res.data[self.model_field.name]
+            self.value = res.data[self.model_field.name]
 
         return res
 
@@ -452,7 +504,7 @@ class FieldBase(metaclass=FieldBaseMeta):
         z_field_info_args.update(
             name=name,
             field_info_args=AttributeDict(
-                **field_info_args,
+                field_info_args,
                 alias=alias,
                 annotation=annotation or get_form_field_python_type(self),
                 default=default,
