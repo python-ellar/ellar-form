@@ -1,6 +1,6 @@
 """Traditional Form package integrated with Pydantic models for an Ellar python web framework"""
 
-__version__ = "0.1.0"
+__version__ = "0.1.2"
 import typing as t
 
 from typing_extensions import Annotated
