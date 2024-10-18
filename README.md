@@ -13,7 +13,7 @@
 
 ## Introduction
 
-Ellar-Form is a powerful and flexible form handling package designed to seamlessly integrate with Pydantic models and the Ellar web framework. It provides a robust set of tools for creating, validating, and processing HTML forms in your Ellar applications.
+Ellar-Form is a powerful and flexible form design package that seamlessly integrates with Pydantic models and the Ellar web framework. It comes with Pydantic field validation and can easily be rendered to HTML.
 
 Key features of Ellar-Form include:
 1. **Pydantic Integration**: Leverages Pydantic models for form field definitions and validation.
