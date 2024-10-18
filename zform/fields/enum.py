@@ -41,7 +41,6 @@ class EnumField(ChoiceField):
 
     def validate_setup(self) -> None:
         super().validate_setup()
-        assert self.enum is not _DefaultEnum, "'enum' parameter is required"
 
     def field_after_validation(self, v: t.Any, info: ValidationInfo) -> t.Any:
         return v

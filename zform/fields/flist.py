@@ -7,6 +7,36 @@ from ellar.common.params.resolvers.base import ResolverResult
 from zform.fields.utils import get_form_field_python_type
 from ellar.pydantic.utils import annotation_is_sequence
 from .base import FieldBase
+from .widget import FieldWidget
+
+
+class FieldListWidget(FieldWidget):
+    field: "FieldList"
+
+    # language=html
+    template: str = """
+        <div {{attrs}}>
+            <input id="{{ field.id }}-next-index" value="{{ next_index }}" hidden>
+
+            {% for item in field %}
+                <div>
+                    {{item.label()}}
+                    {{item()}}
+                </div>
+            {% endfor %}
+        </div>
+        """
+
+    def get_render_context(self) -> t.Dict:
+        """
+        Get the context for rendering the field template.
+
+        Returns:
+            Dict: A dictionary containing the field and the next index for rendering.
+        """
+        ctx = super().get_render_context()
+        ctx.update(field=self, next_index=len(self.field.items))
+        return ctx
 
 
 class FieldList(FieldBase):
@@ -49,20 +79,7 @@ class FieldList(FieldBase):
     """
 
     type = "list"
-
-    # language=html
-    template: str = """
-        <div {{attrs}}>
-            <input id="{{ field.id }}-next-index" value="{{ next_index }}" hidden>
-
-            {% for item in field %}
-                <div>
-                    {{item.label()}}
-                    {{item()}}
-                </div>
-            {% endfor %}
-        </div>
-        """
+    widgetType: t.Type[FieldWidget] = FieldListWidget
 
     def __init__(
         self,
@@ -98,7 +115,7 @@ class FieldList(FieldBase):
             FieldBase: A new instance of the base field type.
         """
         kwargs = dict(getattr(self._base_field, ZFORM_FIELD_ATTRIBUTES, {}))
-        kwargs.update(name=alias)
+        kwargs.update(alias=alias, name=self.name)
         instance = self._base_field.create_from_annotation(
             annotation=get_form_field_python_type(self._base_field), **kwargs
         )
@@ -116,6 +133,16 @@ class FieldList(FieldBase):
         ), "Annotation must be a Sequence"
 
     @property
+    def items(self) -> t.List[FieldBase]:
+        """
+        Get the list of items in the field.
+
+        Returns:
+            List[FieldBase]: The list of items in the field.
+        """
+        return list(self._items)
+
+    @property
     def python_type(self) -> t.Type:
         """
         Get the Python type of the field.
@@ -125,7 +152,9 @@ class FieldList(FieldBase):
         """
         return t.List[self._base_field.python_type]
 
-    def process(self, data: t.Any, suppress_error: bool = True) -> None:
+    def process(
+        self, data: t.Any, suppress_error: bool = True, **kwargs: t.Any
+    ) -> None:
         """
         Process input data for the list field.
 
@@ -140,7 +169,7 @@ class FieldList(FieldBase):
                 self.add_item().process(item_data, suppress_error=suppress_error)
 
     async def process_form_data(
-        self, ctx: IExecutionContext, body: t.Any
+        self, ctx: IExecutionContext, body: t.Any, **kwargs: t.Any
     ) -> ResolverResult:
         """
         Process form data for the entire list of fields.
@@ -166,8 +195,8 @@ class FieldList(FieldBase):
             self._items.append(field)
             res = await field.process_form_data(ctx, body=body)
 
-            values.append(res.data[key] if res.data else None)
-            raw_data[str(index)] = res.raw_data[key]
+            values.append(res.data[self.name] if res.data else None)
+            raw_data[str(index)] = res.raw_data[self.name]
 
             if res.errors:
                 errors.setdefault(self.model_field.alias, []).extend(res.errors)
@@ -240,12 +269,3 @@ class FieldList(FieldBase):
             self.add_item()
 
         return iter(self._items)
-
-    def get_render_context(self, attrs: t.Dict) -> t.Tuple[t.Dict, t.Dict]:
-        """
-        Get the context for rendering the field template.
-
-        Returns:
-            Dict: A dictionary containing the field and the next index for rendering.
-        """
-        return attrs, dict(field=self, next_index=len(self._items))

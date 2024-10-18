@@ -9,6 +9,27 @@ from zform.fields.utils import format_errors
 from pydantic import BaseModel
 
 from .base import FieldBase
+from .widget import FieldWidget
+
+
+class ObjectFieldWidget(FieldWidget):
+    field: "ObjectField"
+    # language=HTML
+    template: str = """
+        <fieldset {{attrs}}>
+            {% for field in fields %}
+                <div>
+                    {{field.label()}}
+                    {{field()}}
+                </div>
+            {% endfor %}
+        </fieldset>
+        """
+
+    def get_render_context(self) -> t.Dict:
+        ctx = super().get_render_context()
+        ctx.update(fields=list(self.field))
+        return ctx
 
 
 class ObjectField(FieldBase):
@@ -44,18 +65,7 @@ class ObjectField(FieldBase):
     """
 
     type: t.Optional[str] = "json"
-
-    # language=HTML
-    template: str = """
-        <fieldset {{attrs}}>
-            {% for field in fields %}
-                <div>
-                    {{field.label()}}
-                    {{field()}}
-                </div>
-            {% endfor %}
-        </fieldset>
-        """
+    widgetType: t.Type[FieldWidget] = ObjectFieldWidget
 
     def __init__(
         self,
@@ -106,11 +116,6 @@ class ObjectField(FieldBase):
         """Validate that either schema or fields are provided."""
         assert self.schema or self._fields, "Must provide either 'schema' or 'fields'"
 
-    def get_render_context(self, attrs: t.Dict) -> t.Tuple[t.Dict, t.Dict]:
-        return attrs, dict(
-            fields=list(self),
-        )
-
     def _propagate_id(self) -> None:
         """Update child fields' IDs by adding this field's ID as prefix."""
         original_fields = list(self._fields)
@@ -133,6 +138,12 @@ class ObjectField(FieldBase):
         Returns:
             str: Formatted name including this field's ID.
         """
+        if self.field_info_args.alias:
+            return (
+                self.field_info_args.alias
+                + ("." if self.field_info_args.alias else "")
+                + name
+            )
         return self.id + ("." if self.id else "") + name
 
     def __iter__(self) -> t.Iterator[FieldBase]:
@@ -174,7 +185,7 @@ class ObjectField(FieldBase):
         return values, errors, raw_data
 
     async def process_form_data(
-        self, ctx: IExecutionContext, body: t.Any
+        self, ctx: IExecutionContext, body: t.Any, **kwargs: t.Any
     ) -> ResolverResult:
         """
         Process and validate form data for this object field.
@@ -207,7 +218,9 @@ class ObjectField(FieldBase):
             {self.name: values}, [{"msg": errors}], {self.name: raw_data}
         )
 
-    def process(self, data: t.Dict, suppress_error: bool = True) -> None:
+    def process(
+        self, data: t.Dict, suppress_error: bool = True, **kwargs: t.Any
+    ) -> None:
         """
         Process input data for this field.
 

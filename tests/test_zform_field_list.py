@@ -25,7 +25,8 @@ def test_add_item(field_list):
     new_field = field_list.add_item()
     assert len(field_list._items) == 1
     assert isinstance(new_field, StringField)
-    assert new_field.name == "xys.0"
+    assert new_field.name == "xys"
+    assert new_field.field_info_args.alias == "xys.0"
 
 
 def test_clear_items(field_list):
@@ -59,7 +60,8 @@ def test_extra_indices(field_list):
 def test_get_new_field_at(field_list):
     new_field = field_list._get_new_field_at("xys.2")
     assert isinstance(new_field, StringField)
-    assert new_field.name == "xys.2"
+    assert new_field.name == "xys"
+    assert new_field.field_info_args.alias == "xys.2"
 
 
 def test_field_list_iteration(field_list):
@@ -74,8 +76,10 @@ def test_field_list_indexing(field_list):
     field_list.add_item()
     field_list.add_item()
     assert isinstance(field_list._items[0], StringField)
-    assert field_list._items[0].name == "xys.0"
-    assert field_list._items[1].name == "xys.1"
+    assert field_list._items[0].name == "xys"
+    assert field_list._items[0].field_info_args.alias == "xys.0"
+    assert field_list._items[1].name == "xys"
+    assert field_list._items[1].field_info_args.alias == "xys.1"
 
 
 def test_field_list_len(field_list):

@@ -46,7 +46,7 @@ class TestIntegerField:
             step=2,
             field_info_args={"annotation": int},
         )
-        html = field.render()
+        html = field.widget.render()
         assert 'type="number"' in html
         assert 'name="age"' in html
         assert 'max="100"' in html
@@ -83,7 +83,7 @@ class TestFloatField:
             step=0.1,
             field_info_args={"annotation": float},
         )
-        html = field.render()
+        html = field.widget.render()
         assert 'type="number"' in html
         assert 'name="weight"' in html
         assert 'max="100.5"' in html
@@ -134,7 +134,7 @@ class TestDecimalField:
         field = DecimalField(
             name="price", max=100, min=0, placeholder="Enter a decimal", step="0.01"
         )
-        html = str(field.render())
+        html = str(field.widget.render())
         assert 'type="number"' in html
         assert 'name="price"' in html
         assert 'max="100"' in html
@@ -188,7 +188,7 @@ class TestRangeField:
 
     def test_render_html(self):
         field = RangeField(name="volume", max=100, min=0, step=5)
-        html = field.render()
+        html = field.widget.render()
         assert 'type="range"' in html
         assert 'name="volume"' in html
         assert 'max="100"' in html

@@ -1,10 +1,21 @@
 import decimal
 import typing as t
 from .base import FieldBase
+from .widget import FieldWidget
+
+
+class NumberFieldWidget(FieldWidget):
+    field: "IntegerField"
+
+    def get_html_attrs(self, **extra_attrs: t.Any) -> t.Dict:
+        attrs = super().get_html_attrs(**extra_attrs)
+        attrs.update(step=self.field.step, max=self.field.max, min=self.field.min)
+        return attrs
 
 
 class IntegerField(FieldBase):
     type = "number"
+    widgetType: t.Type[FieldWidget] = NumberFieldWidget
 
     def __init__(
         self,
@@ -18,10 +29,6 @@ class IntegerField(FieldBase):
         self.max = max
         self.min = min
         super().__init__(**kwargs, placeholder=placeholder)
-
-    def get_render_context(self, attrs: t.Dict) -> t.Tuple[t.Dict, t.Dict]:
-        attrs.update(step=self.step, max=self.max, min=self.min)
-        return attrs, {}
 
     def update_field_info_args(self, field_info_args: t.Dict) -> None:
         super().update_field_info_args(field_info_args)

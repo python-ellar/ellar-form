@@ -55,7 +55,7 @@ def test_enum_field_process():
 
 def test_enum_field_render():
     field = EnumField(enum=Color, name="color")
-    rendered = field.render()
+    rendered = field.widget.render()
     assert '<select class="" id="color" name="color" required>' in rendered
     assert 'name="color"' in rendered
     assert "<option value='red'>RED</option>" in rendered
@@ -89,7 +89,7 @@ def test_enum_field_render_multiple():
         field_info_args={"default": [Color.RED, Color.GREEN]},
     )
     field.load()
-    rendered = field.render()
+    rendered = field.widget.render()
     assert '<select class="" id="color" multiple name="color">' in rendered
     assert 'name="color"' in rendered
     assert "<option value='red' selected>RED</option>" in rendered

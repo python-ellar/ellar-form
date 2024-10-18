@@ -51,7 +51,7 @@ class TestChoiceField:
         choices = [("a", "Option A"), ("b", "Option B")]
         field = ChoiceField(name="test", choices=choices)
         field.data = "a"
-        attrs, context = field.get_render_context({})
+        context = field.widget.get_render_context()
 
         assert context["choices"] == choices
         assert context["is_selected"]("a")
@@ -105,3 +105,16 @@ class TestChoiceField:
         assert form.errors["multi_choice"] == [
             "Value error, Input should be in ['x', 'y', 'z']"
         ]
+
+    def test_choice_field_with_choices_loader(self):
+        def choices_loader():
+            return [("a", "Option A"), ("b", "Option B")]
+
+        field = ChoiceField(name="test", choices_loader=choices_loader)
+        assert field._choices_loader == choices_loader
+
+    def test_choice_field_with_choices_loader_and_choices(self, create_context):
+        field = ChoiceField(
+            name="test", choices_loader=lambda: [("a", "Option A"), ("b", "Option B")]
+        )
+        assert field._choices == [("a", "Option A"), ("b", "Option B")]
