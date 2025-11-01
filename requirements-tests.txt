@@ -5,4 +5,4 @@ pydantic[email]
 pytest >=7.1.3,<9.0.0
 pytest-asyncio
 ruff ==0.9.4
-pytest-cov >=2.12.0,<7.0.0
+pytest-cov >=2.12.0,<8.0.0
